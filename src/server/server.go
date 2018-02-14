@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
+	"strconv"
 )
 
 func CheckError(err error) {
@@ -14,22 +16,28 @@ func CheckError(err error) {
 }
 
 func main() {
-	ServerAddr, err := net.ResolveUDPAddr("udp", ":10001")
+
+	portNumber := ":" + os.Args[1]
+	ServerAddr, err := net.ResolveUDPAddr("udp", portNumber)
 	CheckError(err)
 
-	ServerConn, err := net.ListenUDP("udp", ServerAddr)
+	// Opening port for packets
+	InConn, err := net.ListenUDP("udp", ServerAddr)
 	CheckError(err)
 
-	defer ServerConn.Close()
+	defer InConn.Close()
 
-	buf := make([]byte, 1024)
-
+	buffer := make([]byte, 1024)
 	for {
-		n, addr, err := ServerConn.ReadFromUDP(buf)
-		fmt.Println("Received", string(buf[0:n]), " from ", addr)
+		n, addr, err := InConn.ReadFromUDP(buffer)
+		CheckError(err)
 
-		if err != nil {
-			fmt.Println("Error: ", err)
-		}
+		reqRecvTime := strconv.FormatInt(time.Now().UnixNano(), 10)
+		fmt.Println("Received", string(buffer[0:n]), " from ", addr)
+		CheckError(err)
+
+		reqResTime := strconv.FormatInt(time.Now().UnixNano(), 10)
+		_, err = InConn.WriteToUDP([]byte(reqRecvTime + " " + reqResTime), addr)
+		CheckError(err)
 	}
 }

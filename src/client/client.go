@@ -5,6 +5,8 @@ import (
 	"net"
 	"strconv"
 	"time"
+	"os"
+	"strings"
 )
 
 func CheckError(err error) {
@@ -14,24 +16,47 @@ func CheckError(err error) {
 }
 
 func main() {
-	ServerAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:10001")
+	ServerAddr, err := net.ResolveUDPAddr("udp", os.Args[1])
 	CheckError(err)
 
-	LocalAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	LocalAddr, err := net.ResolveUDPAddr("udp", ":0")
 	CheckError(err)
 
-	Conn, err := net.DialUDP("udp", LocalAddr, ServerAddr)
+	OutConn, err := net.DialUDP("udp", LocalAddr, ServerAddr)
 	CheckError(err)
 
-	defer Conn.Close()
+	f, err := os.Create("timestamp.dat")
+	CheckError(err)
 
-	i := 0
+	defer f.Close()
+	defer OutConn.Close()
+	buffer := make([]byte, 1024)
+
+	f.WriteString("t1\tt2\tt3\tt4\n")
+
 	for {
-		msg := strconv.Itoa(i)
-		i++
-		buf := []byte(msg)
-		_, err := Conn.Write(buf)
+		clientReqTime := strconv.FormatInt(time.Now().UnixNano(), 10)
+		_, err := OutConn.Write([]byte(clientReqTime))
 		CheckError(err)
-		time.Sleep(time.Second * 1)
+
+		n, _, err := OutConn.ReadFromUDP(buffer)
+		CheckError(err)
+
+		clientRecvTime := strconv.FormatInt(time.Now().UnixNano(), 10)
+
+		tokens := strings.Split(string(buffer[:n]), " ")
+		serverRecvTime, serverResTime := tokens[0], tokens[1]
+
+		f.WriteString(clientReqTime + "\t" +
+			serverRecvTime + "\t" +
+			serverResTime + "\t" +
+			clientRecvTime + "\n")
+
+		fmt.Println("C Req Time\t", clientReqTime,
+			"\tS Recv Time\t", serverRecvTime,
+			"\tS Res Time\t", serverResTime,
+			"\tC Recv Time\t", clientRecvTime)
+
+		time.Sleep(time.Second * 10)
 	}
 }
